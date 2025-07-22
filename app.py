@@ -1,10 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.io as pio
-from fpdf import FPDF
 import io
-import os
 from datetime import datetime
 
 # Configuração da interface
@@ -23,36 +20,6 @@ def carregar_dados():
     except Exception as e:
         st.error(f"Erro ao carregar os dados: {e}")
         return None, None, None, None
-
-# Função para gerar PDF com gráficos
-
-def gerar_pdf(grafico_dict, kpis=None):
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-
-    # Página de KPIs se fornecido
-    if kpis:
-        pdf.add_page()
-        pdf.set_font("Arial", size=14)
-        pdf.cell(200, 10, txt="Resumo Executivo - KPIs", ln=True, align="C")
-        pdf.set_font("Arial", size=12)
-        for k, v in kpis.items():
-            pdf.ln(8)
-            pdf.cell(0, 10, txt=f"{k}: {v}", ln=True)
-
-    for titulo, fig in grafico_dict.items():
-        img_path = f"temp_{titulo}.png"
-        pio.write_image(fig, img_path, width=1000, height=500)
-
-        pdf.add_page()
-        pdf.set_font("Arial", size=16)
-        pdf.cell(200, 10, txt=titulo, ln=True, align="C")
-        pdf.image(img_path, x=10, y=30, w=190)
-        os.remove(img_path)
-
-    output_pdf = "relatorio_dashboard.pdf"
-    pdf.output(output_pdf)
-    return output_pdf
 
 # Carregamento inicial
 clientes, pedidos, itens, produtos = carregar_dados()
@@ -153,57 +120,6 @@ if clientes is not None:
                 )
                 fig.update_layout(height=400, template="plotly_dark")
                 st.plotly_chart(fig, use_container_width=True)
-
-                # PDF com múltiplos gráficos
-                if st.button("📄 Gerar relatório completo em PDF"):
-                    graficos_para_pdf = {}
-
-                    # Produtos mais vendidos
-                    graficos_para_pdf["Top 5 Produtos Mais Vendidos"] = fig
-
-                    # Formas de pagamento
-                    try:
-                        forma_pgto = pedidos["FormaPagamento"].value_counts().reset_index()
-                        forma_pgto.columns = ["Forma de Pagamento", "Total"]
-                        fig_fp = px.pie(
-                            forma_pgto,
-                            names="Forma de Pagamento",
-                            values="Total",
-                            title="Distribuição das Formas de Pagamento",
-                            color_discrete_sequence=px.colors.sequential.RdBu
-                        )
-                        fig_fp.update_layout(template="plotly_dark")
-                        graficos_para_pdf["Formas de Pagamento"] = fig_fp
-                    except:
-                        pass
-
-                    # Tipo de cliente
-                    try:
-                        pedidos_clientes = pedidos.merge(clientes, left_on="CodigoClientePedido", right_on="CodigoCliente", how="left")
-                        tipos = pedidos_clientes["TipoCliente"].value_counts().reset_index()
-                        tipos.columns = ["Tipo de Cliente", "Total de Pedidos"]
-                        fig_tc = px.bar(
-                            tipos,
-                            x="Tipo de Cliente",
-                            y="Total de Pedidos",
-                            color="Tipo de Cliente",
-                            title="Pedidos por Tipo de Cliente",
-                            color_discrete_sequence=px.colors.qualitative.Set2
-                        )
-                        fig_tc.update_layout(template="plotly_dark")
-                        graficos_para_pdf["Tipo de Cliente"] = fig_tc
-                    except:
-                        pass
-
-                    kpis_exec = {
-                        "Total de Pedidos": f"{total_pedidos:,}",
-                        "Ticket Médio": f"R$ {ticket_medio:,.2f}",
-                        "Frete Grátis (%)": f"{pct_frete_gratis:.1f}%",
-                        "Desconto Médio": f"R$ {desconto_medio:,.2f}"
-                    }
-                    caminho_pdf = gerar_pdf(graficos_para_pdf, kpis=kpis_exec)
-                    with open(caminho_pdf, "rb") as f:
-                        st.download_button("📥 Baixar Relatório Completo", data=f, file_name="relatorio_completo.pdf", mime="application/pdf")
 
             except Exception as e:
                 st.error(f"Erro ao buscar produtos mais vendidos: {e}")
